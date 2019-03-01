@@ -1,0 +1,185 @@
+options 
+{
+    STATIC = false;
+    UNICODE_INPUT = true;
+}
+
+PARSER_BEGIN(JSON)
+package cn.lzxz1234.json.v2;
+
+import java.io.*;
+import java.lang.*;
+import java.math.*;
+import java.util.*;
+import cn.lzxz1234.json.util.JSONUtil;
+
+@SuppressWarnings("all")
+public class JSON {
+
+    public static <T> T parse(String s) throws ParseException{
+        Reader reader = new StringReader(s);
+        return (T)new JSON(reader).parse();
+    }
+
+}
+PARSER_END(JSON)
+
+SKIP :
+{
+  " "
+| "\t"
+| "\n"
+| "\r"
+| < "/*" (~[ "*" ])* "*"
+    (
+      ~[ "/" ] (~[ "*" ])* "*"
+    )*
+    "/" >
+}
+
+
+SPECIAL_TOKEN :
+{
+  < SINGLE_LINE_COMMENT : "//" (~["\n", "\r"])* ("\n" | "\r" | "\r\n")? >
+|
+  < MULTI_LINE_COMMENT : "/*" (~[ "*" ])* "*" ( ~[ "/" ] (~[ "*" ])* "*" )* "/" >
+}
+
+TOKEN :
+{
+    < BOOL : "true" | "false" >
+|
+    < NULL: "null" >
+|
+    < LBRACE : "{" >
+|
+    < RBRACE : "}" >
+|
+    < LBRACKET : "[" >
+|
+    < RBRACKET : "]" >
+|
+    < COLON : ":" >
+|
+    < COMMA : "," >
+|
+    < QUOTE : "\"" >
+}
+
+TOKEN :
+{
+    < NUMBER : < INT > >
+|
+    < STRING : < QUOTE > < CHARACTERS > < QUOTE > >
+|
+    < #CHARACTERS : ( < CHARACTER > ) * >
+| 
+    < #CHARACTER : ( "\\" < ESCAPE > ) |  ~["\"","\\"] >
+|
+    < #ESCAPE :  "\"" | "\\" | "/" | "b" | "n" | "r" | "t" | ( "u" <HEX><HEX><HEX><HEX> ) >
+| 
+    < #INT: 
+        ( "-" ) ?
+        ( < DIGIT > ) +
+    >
+|
+    < #DIGIT : [ "0"-"9" ] >
+|
+    < #HEX : <DIGIT> | [ "a"-"f", "A"-"F" ] >
+}
+
+Object parse() :
+{
+
+}
+{
+    { return parseElement(); }
+}
+
+Object parseElement():
+{
+    Token t = null;
+}
+{
+    < LBRACE >
+    {
+        return parseObject();
+    }
+    < RBRACE >
+|
+    < LBRACKET >
+    {
+        return parseArray();
+    }
+    < RBRACKET >
+|
+    t = < STRING >
+    {
+        return JSONUtil.unescape(t.image.substring(1, t.image.length() - 1));
+    }
+|
+    t = < NUMBER >
+    {
+        return new BigDecimal(t.image);
+    }
+|
+    t = < BOOL >
+    {
+        return Boolean.valueOf(t.image);
+    }
+|
+    < NULL >
+    {
+        return null;
+    }
+}
+
+Map<String, Object> parseObject() :
+{
+    Map<String, Object> result = new LinkedHashMap<String, Object>();
+}
+{
+    ( parseMembers(result) ) ?
+    
+    {
+        return result;
+    }
+}
+
+void parseMembers(Map<String, Object> result) :
+{
+
+}
+{
+    parseMember(result) [ < COMMA > parseMembers(result) ]
+}
+
+void parseMember(Map<String, Object> result) :
+{
+    Token key = null;
+    Object value = null;
+}
+{
+    key = < STRING > < COLON >
+    value = parseElement() 
+    {
+        result.put(JSONUtil.unescape(key.image.substring(1, key.image.length() - 1)), value);
+    }
+}
+
+List<Object> parseArray() : 
+{
+    Object value = null;
+    List<Object> result = new ArrayList<Object>();
+}
+{
+    (
+        value = parseElement() ( < COMMA > ) ?
+        {
+            result.add(value);
+        }
+    ) *
+    {
+        return result;
+    }
+}
